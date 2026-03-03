@@ -11,6 +11,11 @@ router = APIRouter(prefix="/api/v1/knowledge", tags=["knowledge", "upload"])
 UPLOAD_DIR = "/tmp/agent_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+@router.get("/industries")
+async def get_industries(db: Session = Depends(get_db)):
+    industries = db.query(Industry).all()
+    return [{"id": ind.id, "name": ind.name, "description": ind.description} for ind in industries]
+
 @router.post("/upload")
 async def upload_document(
     industry_id: int = Form(...),
@@ -69,3 +74,81 @@ async def upload_document(
     os.remove(temp_path)
     
     return {"message": "Document uploaded and ingested successfully.", "doc_id": doc_meta.id}
+
+from typing import List
+
+@router.post("/batch_upload")
+async def batch_upload_documents(
+    industry_id: int = Form(...),
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db)
+):
+    # 1. Validate Industry
+    industry = db.query(Industry).filter(Industry.id == industry_id).first()
+    if not industry:
+        raise HTTPException(status_code=404, detail="Industry not found.")
+    
+    results = {
+        "total": len(files),
+        "success": 0,
+        "failed": [],
+        "duplicate": 0
+    }
+
+    for file in files:
+        try:
+            # 2. Save file temporarily
+            file_ext = os.path.splitext(file.filename)[1].lower()
+            if file_ext not in ['.pdf', '.doc', '.docx']:
+                results["failed"].append({"file": file.filename, "reason": "Unsupported file type"})
+                continue
+                
+            temp_path = os.path.join(UPLOAD_DIR, file.filename)
+            with open(temp_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+                
+            # 3. Check duplicate via Hash
+            file_hash = compute_file_hash(temp_path)
+            existing_doc = db.query(DocumentMeta).filter(
+                DocumentMeta.file_hash == file_hash, 
+                DocumentMeta.industry_id == industry_id
+            ).first()
+            
+            if existing_doc:
+                os.remove(temp_path)
+                results["duplicate"] += 1
+                results["failed"].append({"file": file.filename, "reason": "Duplicate content"})
+                continue
+                
+            # 4. Create DB Meta Record
+            doc_meta = DocumentMeta(
+                title=file.filename,
+                source_type="upload",
+                status="approved",
+                industry_id=industry_id,
+                file_hash=file_hash,
+                summary="Uploaded via batch."
+            )
+            db.add(doc_meta)
+            db.commit()
+            db.refresh(doc_meta)
+            
+            # 5. Ingest to Milvus
+            try:
+                ingest_to_milvus(industry.name, str(doc_meta.id), temp_path)
+                results["success"] += 1
+            except Exception as e:
+                db.delete(doc_meta)
+                db.commit()
+                results["failed"].append({"file": file.filename, "reason": f"Milvus ingestion failed: {str(e)}"})
+                
+            # Clean up
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                
+        except Exception as e:
+            results["failed"].append({"file": file.filename, "reason": f"System error: {str(e)}"})
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    return results

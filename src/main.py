@@ -36,7 +36,10 @@ app.include_router(knowledge.router)
 app.include_router(review.router)
 app.include_router(chat.router)
 
+from fastapi.staticfiles import StaticFiles
+
+app.mount("/ui", StaticFiles(directory="src/frontend", html=True), name="frontend")
+
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
-
