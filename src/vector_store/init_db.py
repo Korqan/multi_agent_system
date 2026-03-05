@@ -3,7 +3,7 @@ from config import INDUSTRY_MAPPING, VECTOR_DIM
 
 def init_all_collections():
     print(">>> 开始初始化 Milvus 数据库的各个行业 Collection...")
-    connections.connect(host="localhost", port="19530")
+    connections.connect(host="172.21.238.107", port="19530")
 
     # 定义统一的、具有极强包容性的 Schema
     fields = [
@@ -14,7 +14,7 @@ def init_all_collections():
         FieldSchema(name="dynamic_metadata", dtype=DataType.JSON) 
     ]
     
-    schema = CollectionSchema(fields=fields, description="固定行业的结构化知识库")
+    schema = CollectionSchema(fields=fields, description="行业结构化知识库")
     index_params = {"metric_type": "L2", "index_type": "HNSW", "params": {"M": 16, "efConstruction": 64}}
 
     for zh_name, en_name in INDUSTRY_MAPPING.items():

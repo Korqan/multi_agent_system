@@ -68,17 +68,15 @@ def ingest_to_milvus(industry_name: str, doc_id: str, file_path: str):
     # 4. Store in Milvus
     collection = create_industry_collection(industry_name)
     
-    # Prepare data format for insertion
-    # Using python built-in UUID for pk
-    import uuid
-    pks = [str(uuid.uuid4()) for _ in vectors]
-    doc_ids = [str(doc_id) for _ in vectors]
+    # Prepare data format for insertion based on init_db schema
+    # Schema Fields: chunk_id (auto_id), vector, chunk_text, dynamic_metadata
+    
+    metadatas = [{"doc_id": doc_id, "source": file_path} for _ in vectors]
     
     data = [
-        pks, # pk
-        texts, # text
-        doc_ids, # doc_id
-        vectors # vector
+        vectors,      # vector (FLOAT_VECTOR)
+        texts,        # chunk_text (VARCHAR)
+        metadatas     # dynamic_metadata (JSON)
     ]
     
     collection.insert(data)

@@ -2,10 +2,15 @@
 import os
 import fitz  # PyMuPDF
 import docx
+import logging
+from langchain_openai import OpenAIEmbeddings
+
 from pymilvus import connections, Collection
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from config import INDUSTRY_MAPPING, VECTOR_DIM
+from config import settings
 
+logger = logging.getLogger(__name__)
 # ==========================================
 # 解析器 A: 处理 PDF 文档
 # ==========================================
@@ -14,10 +19,13 @@ def parse_pdf(file_path):
     heading_stack = [] 
     chunks = []
     doc_title = os.path.basename(file_path)
+    print(file_path)
+    print(len(doc))
 
     for page_num in range(len(doc)):
         page = doc[page_num]
         blocks = page.get_text("dict").get("blocks", [])
+
         
         for block in blocks:
             if block.get('type') == 0: # 文本块
@@ -94,28 +102,49 @@ def ingest_single_document(file_path, chinese_industry_name):
         print("[!] 文件解析为空或未提取到有效文本。")
         return False
 
-    # 模拟 Embedding (你需要替换为真实的模型调用，例如 BGE-M3 或 OpenAI)
-    def embed_text(text): return [0.1] * VECTOR_DIM 
+    rag_config = settings.config.get('rag', {})
+    provider = rag_config.get('provider', 'local')
+    model_name = rag_config.get('model_name', rag_config.get('embedding_model', 'all-MiniLM-L6-v2'))
 
+    logger.info(f"📥 [RAG] 正在加载 Embedding 模型: {model_name} (Provider: {provider}) ...")
+    base_url = rag_config.get('base_url', "http://localhost:8000/v1")
+    api_key = rag_config.get('api_key', "EMPTY")
+    logger.info("==============================")
+    logger.info(base_url)
+    logger.info(api_key)
+    logger.info("==============================")
+    model = OpenAIEmbeddings(
+        model=model_name,
+        openai_api_base=base_url,
+        openai_api_key=api_key,
+        check_embedding_ctx_length=False
+    )
+    
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     insert_data = []
     
     for item in extracted_data:
         sub_chunks = splitter.split_text(item["text"])
-        for sub_chunk in sub_chunks:
+        if not sub_chunks:
+            continue
+            
+        # 批量获取向量以提升速度
+        vectors = model.embed_documents(sub_chunks)
+        
+        for idx, sub_chunk in enumerate(sub_chunks):
             metadata = {
                 "doc_title": item["doc_title"],
                 "headings_path": item["headings_path"],
                 "source_type": ext
             }
             insert_data.append({
-                "vector": embed_text(sub_chunk),
+                "vector": vectors[idx],
                 "chunk_text": sub_chunk,
                 "dynamic_metadata": metadata
             })
 
     # 连接并写入 Milvus
-    connections.connect(host="localhost", port="19530")
+    connections.connect(host="172.21.238.107", port="19530")
     collection = Collection(english_coll_name)
     
     vectors = [x["vector"] for x in insert_data]

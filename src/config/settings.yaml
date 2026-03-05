@@ -1,0 +1,93 @@
+# ==========================================
+# 1. LLM 模型配置 (本地模型)
+# ==========================================
+llm:
+  provider: "openai"
+  base_url: "http://172.21.230.114:3001/llmgw/api/v1"  # 请确保您的本地模型服务地址正确
+  model_name: "Qwen3_32B"             # 您的本地模型名称
+  api_key: "sk-0R1gi7hCZHuezQOF6eC65b2cCe5f48Ad98240e406d1"                      # 本地模型通常不需要 Key
+  timeout: 120                          # 秒，复杂推理建议设长一点
+
+# ==========================================
+# 2. 向量数据库 & RAG 配置 (ChromaDB)
+# ==========================================
+vector_db:
+  provider: "chroma"
+  persist_directory: "vector_store"     # 向量库数据在本地的存储目录 (相对路径)
+  collection_name: "business_knowledge" # 业务文档集合名
+  schema_collection: "db_schemas"       # 数据库表结构集合名
+
+rag:
+  provider: "openai"                    # "openai" (remote) or "local" (huggingface)
+  base_url: "http://172.21.230.114:3001/llmgw/api/v1"  # 远程 Embedding 服务地址
+  api_key: "sk-ipFMXdKSzNYzZzHGMfaswBSQjnQX6pFr"                      # 远程服务 API Key
+  model_name: "bge-large-zh-v1.5"                  # 远程模型名称 (或本地模型路径)
+  # embedding_model: "all-MiniLM-L6-v2" # Deprecated: use model_name instead
+  chunk_size: 1000                      # 文档切片大小
+  chunk_overlap: 100                    # 切片重叠部分
+  search_top_k: 3                       # 默认召回条数
+
+# ==========================================
+# 3. Hive 数据库配置 (执行 SQL)
+# ==========================================
+hive:
+  host: "192.168.1.100"    # HiveServer2 IP
+  port: 10000
+  username: "hadoop"
+  password: ""             # 若无密码留空
+  database: "default"
+  auth: "NOSASL"           # 常见: NOSASL, LDAP, KERBEROS, NONE
+
+# ==========================================
+# 4. Docker 沙箱配置 (Python 代码执行)
+# ==========================================
+docker:
+  image_name: "docker_sandbox:v1"        # 基础镜像
+  container_work_dir: "/home/up_docker/workspace"  # 容器内部的工作目录 (挂载点)
+  local_mount_dir: "/home/nltsqlas/wzqi/ds_agent/data"
+  container_mem_limit: "512m"           # 内存限制
+  auto_remove: true                     # 执行结束后自动删除容器
+
+# ==========================================
+# 5. 系统路径配置
+# ==========================================
+paths:
+  # 数据存储根目录 (所有用户/会话数据都存在这里)
+  data_root: "log"
+  
+  # 全局系统日志 (运维监控用)
+  global_log_file: "log/system.log"
+
+# ==========================================
+# 6. 策略与参数配置
+# ==========================================
+policy:
+  max_retries: 3              # 错误反思重试的最大次数
+  
+  # 不同 Agent 的温度设置
+  intent_temperature: 0.0     # 意图识别要精准
+  sql_temperature: 0.1        # SQL 生成要严谨
+  analysis_temperature: 0.1   # 代码生成要稳定
+  report_temperature: 0.5     # 报告生成可以稍有文采
+
+# ==========================================
+# 7. 系统技能注册表 (System Skills)
+# ==========================================
+skills:
+  - name: "hive_sql_query"
+    description: "完整流程：生成 SQL -> 校验 -> 执行并保存结果。"
+  
+  - name: "hive_sql_generation_only"
+    description: "仅生成并校验 SQL，不执行。用于用户只想看 SQL 怎么写的情况。"
+
+  - name: "hive_sql_validation_only"
+    description: "仅校验给定的 SQL 语法，不执行。用于用户提供 SQL 求证正确性的情况。"
+  
+  - name: "data_analysis_only"
+    description: "仅进行数据分析和画图，不生成商业报告。用于探索性分析。"
+
+  - name: "data_analysis_and_report"
+    description: "完整流程：数据分析 -> 画图 -> 生成商业报告。"
+    
+  - name: "knowledge_retrieval"
+    description: "查询向量知识库，获取业务定义、指标解释或公司政策。"

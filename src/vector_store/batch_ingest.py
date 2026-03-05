@@ -8,11 +8,10 @@ def batch_ingest_from_directory(root_dir):
     遍历指定根目录。
     假设目录结构为:
     /data_root/
-        ├── 安全行业/
-        │   ├── 规范1.pdf
-        │   └── 手册2.docx
-        ├── 危化行业/
-        │   └── 管理办法.pdf
+        ├── 安全/
+        │   └── 手册1.pdf
+        ├── 危化/
+        │   └── 管理.pdf
     """
     root_path = Path(root_dir)
     if not root_path.exists() or not root_path.is_dir():
@@ -31,8 +30,12 @@ def batch_ingest_from_directory(root_dir):
             chinese_industry_name = file_path.parent.name
             
             try:
-                # 调用我们在 2_ingest_single.py 中定义的核心函数
+                # 调用我们在 ingest_single.py 中定义的核心函数
+                print("=========== 调用我们在 ingest_single.py 中定义的核心函数 =============")
+                print(str(file_path))
+                print(chinese_industry_name)
                 result = ingest_single_document(str(file_path), chinese_industry_name)
+                print("=========== 调用我们在 ingest_single.py 中定义的核心函数 =============")
                 if result:
                     success_count += 1
                 else:
@@ -47,6 +50,6 @@ def batch_ingest_from_directory(root_dir):
 if __name__ == "__main__":
     # 请将此处替换为你存放所有行业文件夹的绝对或相对路径
     # 例如：ROOT_DATA_FOLDER = "/Users/yourname/Documents/行业资料库"
-    ROOT_DATA_FOLDER = "./my_industry_data" 
+    ROOT_DATA_FOLDER = "/home/nltsqlas/wzqi/multi_agent_system-main/data"
     
     batch_ingest_from_directory(ROOT_DATA_FOLDER)

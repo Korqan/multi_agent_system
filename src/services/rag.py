@@ -1,5 +1,5 @@
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_classic.chains import create_retrieval_chain
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_milvus import Milvus
 from pymilvus import Collection
@@ -7,10 +7,12 @@ from pymilvus import Collection
 from src.services.llm import get_llm, get_embeddings
 from src.vector_store.milvus_client import MILVUS_HOST, MILVUS_PORT
 
+from src.vector_store.config import get_collection_name
+
 def setup_rag_chain(industry_name: str):
     llm = get_llm(temperature=0.0)
     embeddings = get_embeddings()
-    collection_name = f"knowledge_{industry_name.lower().replace(' ', '_')}"
+    collection_name = get_collection_name(industry_name)
     
     # Initialize the Milvus vector store for LangChain
     vector_store = Milvus(
@@ -18,8 +20,8 @@ def setup_rag_chain(industry_name: str):
         collection_name=collection_name,
         connection_args={"host": MILVUS_HOST, "port": MILVUS_PORT},
         vector_field="vector",
-        text_field="text",
-        primary_field="pk"
+        text_field="chunk_text",
+        primary_field="chunk_id"
     )
     
     # Create the retriever (e.g., top 5 most relevant chunks)
